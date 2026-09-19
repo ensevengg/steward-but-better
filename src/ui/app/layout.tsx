@@ -4,7 +4,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "StewardButBetter Race Control",
-  description: "High-performance race control dashboard for telemetry, rulings, and FIA references.",
+  description:
+    "Review racing incidents with source evidence, applicable rules, and explicit uncertainty.",
 };
 
 export default function RootLayout({
