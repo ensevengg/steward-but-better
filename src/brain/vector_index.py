@@ -25,7 +25,6 @@ from typing import Dict, List, Tuple
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RULES_DIR = REPO_ROOT / "processed_rules"
@@ -223,6 +222,7 @@ def _prepare_texts_and_metadata(
 
 
 def _embed_texts(texts: List[str]) -> np.ndarray:
+    from sentence_transformers import SentenceTransformer
     model = SentenceTransformer(EMBEDDING_MODEL)
     embeddings = model.encode(
         texts,
@@ -403,6 +403,7 @@ def validate_index(
 def smoke_search(query: str, index_file: str | Path = DEFAULT_INDEX_FILE,
                  metadata_file: str | Path = DEFAULT_METADATA_FILE, k: int = 3) -> None:
     """Run a query against the index and print top chunks with metadata."""
+    from sentence_transformers import SentenceTransformer
     index_path = Path(index_file)
     payload = json.loads(Path(metadata_file).read_text(encoding="utf-8"))
     texts = payload["texts"]

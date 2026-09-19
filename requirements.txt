@@ -1,20 +1,11 @@
-# Brain (RAG + verdicts)
-mistralai>=1.0
-sentence-transformers>=2.7
-langchain-community>=0.2
-langchain-core>=0.2
-faiss-cpu>=1.8
-
-# Telemetry
-fastf1>=3.4
-pandas>=2.0
-numpy>=1.26
-requests>=2.31
-python-dotenv>=1.0
-
-# Brain service
-fastapi>=0.111
-uvicorn>=0.30
-
-# Development
-pytest>=8.0
+# Runtime fallback for pip. Reproducible development: uv sync --frozen --group dev
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+httpx>=0.27,<1
+pydantic>=2.10,<3
+python-dotenv>=1,<2
+fastf1>=3.4,<4
+pandas>=2.2,<3
+numpy>=1.26,<3
+requests>=2.31,<3
+# Optional archived indexing/OCR: uv sync --group indexing

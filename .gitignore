@@ -1,5 +1,16 @@
 # Environment
 .env
+.env.*
+!.env.example
+.venv/
+node_modules/
+.next/
+*.tsbuildinfo
+coverage.xml
+.coverage
+htmlcov/
+test-results/
+playwright-report/
 
 # Python
 __pycache__/

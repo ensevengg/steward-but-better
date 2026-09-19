@@ -1,0 +1,11 @@
+{
+  "sao-paulo-2025-reviewed": {
+    "ruling": "PENALTY_RECOMMENDED",
+    "penalty_seconds": 10,
+    "official_penalty_points": 2,
+    "reference_document": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+    "document_number": 68,
+    "benchmark_type": "document_reconstruction",
+    "independent_accuracy_claim": false
+  }
+}

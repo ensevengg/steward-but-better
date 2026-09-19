@@ -1,0 +1,101 @@
+{
+  "id": "sao-paulo-2025-reviewed",
+  "session_id": "sao-paulo-2025-study",
+  "event_date": "2025-11-09",
+  "title": "São Paulo · reviewed incident reconstruction",
+  "driver": "PIA",
+  "rival": "ANT",
+  "lap": 6,
+  "corner": "Turn 1",
+  "incident_type": "collision",
+  "evidence_mode": "document_reconstruction",
+  "samples": [],
+  "limitations": [
+    "Facts are annotated from FIA document 68; this is a retrospective reconstruction, not an independent perception benchmark.",
+    "Negative context annotations interpret the published account and are explicit assumptions for rule-application testing.",
+    "Penalty points and alternative discretionary sanctions require manual review."
+  ],
+  "observations": [
+    {
+      "id": "E1",
+      "predicate": "contact",
+      "value": true,
+      "source": "official_document",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "The account describes contact between the attacking car and the car ahead.",
+      "verified": true
+    },
+    {
+      "id": "E2",
+      "predicate": "inside_overtake",
+      "value": true,
+      "source": "official_document",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "The attempt was on the inside at the first corner following the restart.",
+      "verified": true
+    },
+    {
+      "id": "E3",
+      "predicate": "overlap_prior_and_apex",
+      "value": false,
+      "source": "official_document",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "The attacker did not reach the stated front-axle-to-mirror overlap in the required phase.",
+      "verified": true
+    },
+    {
+      "id": "E4",
+      "predicate": "controlled",
+      "value": false,
+      "source": "official_document",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "The attacker locked its brakes and could not prevent the contact.",
+      "verified": true
+    },
+    {
+      "id": "E5",
+      "predicate": "other_driver_contributed",
+      "value": false,
+      "source": "reviewer_annotation",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "Reconstruction assumption: the published allocation of responsibility identifies no shared contribution.",
+      "verified": true
+    },
+    {
+      "id": "E6",
+      "predicate": "external_cause",
+      "value": false,
+      "source": "reviewer_annotation",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "Reconstruction assumption: no external cause for the attacking car is identified in the published account.",
+      "verified": true
+    },
+    {
+      "id": "E7",
+      "predicate": "mitigating_circumstances",
+      "value": false,
+      "source": "reviewer_annotation",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "Reconstruction assumption: the published factual account supplies no accepted mitigating circumstance.",
+      "verified": true
+    },
+    {
+      "id": "E8",
+      "predicate": "reckless_or_deliberate",
+      "value": false,
+      "source": "reviewer_annotation",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "Reconstruction assumption: the account describes an unsuccessful braking response, not deliberate contact.",
+      "verified": true
+    },
+    {
+      "id": "E9",
+      "predicate": "sporting_consequence",
+      "value": true,
+      "source": "official_document",
+      "source_ref": "https://www.fia.com/system/files/decision-document/2025_sao_paulo_grand_prix_-_corrected_race_-_infringement_-_car_81_-_causing_a_collision_with_car_12_in_turn_1.pdf",
+      "detail": "The contact led to a secondary impact involving a third car and its retirement.",
+      "verified": true
+    }
+  ]
+}
