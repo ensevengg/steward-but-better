@@ -1,25 +1,20 @@
 """F1 Telemetry Extractor for incident data analysis.
 
-This module provides functionality to extract high-precision telemetry data from
-fastf1 for specific race incidents, supporting multi-car comparisons through
-distance offset calculation.
+This legacy extraction helper preserves native timestamps. Integrated distance
+is approximate and must not be used to establish overlap between cars.
 """
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import fastf1
 import pandas as pd
 
-from dotenv import load_dotenv
-load_dotenv(override=True)
-
 
 class TelemetryExtractor:
-    """Extracts high-precision telemetry data from F1 sessions."""
+    """Extracts public telemetry estimates from F1 sessions."""
 
     def __init__(self, cache_enabled: bool = True) -> None:
         """Initialize the telemetry extractor.
@@ -89,13 +84,9 @@ class TelemetryExtractor:
         car_data = self._session.car_data[driver_number]
 
         if car_data.empty:
-            raise ValueError(
-                f"No car data found for driver {driver_code} (number {driver_number})"
-            )
+            raise ValueError(f"No car data found for driver {driver_code} (number {driver_number})")
 
-        mask = (car_data["SessionTime"] >= lap_start) & (
-            car_data["SessionTime"] <= lap_end
-        )
+        mask = (car_data["SessionTime"] >= lap_start) & (car_data["SessionTime"] <= lap_end)
         telemetry = car_data[mask]
 
         if telemetry.empty:
@@ -119,9 +110,7 @@ class TelemetryExtractor:
 
         return telemetry_df
 
-    def _extract_high_precision_telemetry(
-        self, telemetry: pd.DataFrame
-    ) -> pd.DataFrame:
+    def _extract_high_precision_telemetry(self, telemetry: pd.DataFrame) -> pd.DataFrame:
         """Extract high-precision telemetry channels."""
         channels = ["Speed", "Throttle", "Brake", "nGear", "DRS"]
         rename_map = {"nGear": "Gear"}
@@ -137,40 +126,41 @@ class TelemetryExtractor:
         df = pd.DataFrame(data)
         df = df.rename(columns=rename_map)
 
-        if "Time" in telemetry.columns:
-            df["Time"] = telemetry["Time"].values
+        for column in ["Time", "SessionTime"]:
+            if column in telemetry.columns:
+                df[column] = telemetry[column].values
 
         if "Distance" in telemetry.columns:
             df["Distance"] = telemetry["Distance"].values
         elif "Speed" in df.columns and len(df["Speed"]) > 0:
-            df["Distance"] = self._calculate_distance_from_speed(df["Speed"])
-
-        df = df.dropna(subset=["Speed", "Distance"])
+            timestamps = df.get("SessionTime", df.get("Time"))
+            df["Distance"] = self._calculate_distance_from_speed(df["Speed"], timestamps)
 
         return df
 
-    def _calculate_distance_from_speed(self, speed: pd.Series) -> pd.Series:
-        """Calculate approximate distance from speed data using cumulative sum.
-
-        This is a fallback when direct distance data is unavailable.
-        Assumes equal time intervals between samples.
-        """
-        speed_ms = speed / 3.6
-        time_delta = 1.0 / 20.0
-        distance_delta = speed_ms * time_delta
-        return distance_delta.cumsum()
+    def _calculate_distance_from_speed(self, speed: pd.Series, timestamps=None) -> pd.Series:
+        """Trapezoidal distance on native time; holes invalidate subsequent distance."""
+        if timestamps is None:
+            return pd.Series(float("nan"), index=speed.index)
+        seconds = pd.to_timedelta(timestamps).dt.total_seconds()
+        dt = seconds.diff()
+        if seconds.isna().any() or dt.iloc[1:].le(0).any():
+            raise ValueError("Distance requires increasing native timestamps")
+        increments = (speed + speed.shift()) / 7.2 * dt.where(dt <= 1)
+        if len(increments) and pd.notna(speed.iloc[0]):
+            increments.iloc[0] = 0
+        return increments.cumsum(skipna=False)
 
     def _calculate_distance_offset(self, telemetry_df: pd.DataFrame) -> pd.DataFrame:
         """Calculate distance offset relative to first data point.
 
-        This normalizes distance to start from 0, enabling multi-car comparisons
-        across different laps and sessions.
+        Each driver's origin differs; this is not cross-car spatial alignment.
         """
         if "Distance" in telemetry_df.columns and not telemetry_df["Distance"].empty:
             min_distance = telemetry_df["Distance"].iloc[0]
             telemetry_df["DistanceOffset"] = telemetry_df["Distance"] - min_distance
         else:
-            telemetry_df["DistanceOffset"] = 0.0
+            telemetry_df["DistanceOffset"] = float("nan")
 
         return telemetry_df
 
@@ -227,13 +217,9 @@ if __name__ == "__main__":
             f"Throttle range: {telemetry_data['Throttle'].min():.0%} - {telemetry_data['Throttle'].max():.0%}"
         )
         print(f"Brake events: {telemetry_data['Brake'].sum()}")
-        print(
-            f"Gear range: {telemetry_data['Gear'].min():.0f} - {telemetry_data['Gear'].max():.0f}"
-        )
+        print(f"Gear range: {telemetry_data['Gear'].min():.0f} - {telemetry_data['Gear'].max():.0f}")
 
-        output_path = extractor.save_to_parquet(
-            telemetry_data, "verstappen_abu_dhabi_2021_lap58.parquet"
-        )
+        output_path = extractor.save_to_parquet(telemetry_data, "verstappen_abu_dhabi_2021_lap58.parquet")
         print(f"\nSaved to: {output_path}")
 
         print("\nFirst 5 rows:")

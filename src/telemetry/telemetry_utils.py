@@ -1,19 +1,7 @@
-"""Shared telemetry helpers: time conversion, overlap regions, and G-force physics.
-
-G-forces are computed from real data only:
-- With X/Y position channels (FastF1 ``pos_data``), lateral and longitudinal
-  acceleration come from the trajectory (velocity/acceleration vectors derived
-  from smoothed positions).
-- Without positions, only longitudinal G can be derived (from speed over time);
-  lateral G is reported as 0.0 with ``lateral_g_available=False``.
-
-Nothing in this module fabricates data.
-"""
+"""Telemetry estimates with explicit units, bounded joins and missing values."""
 
 from __future__ import annotations
-
 from typing import Any
-
 import numpy as np
 import pandas as pd
 
@@ -21,146 +9,86 @@ G_ACCELERATION = 9.81
 
 
 def timedelta_to_seconds(td: Any) -> float:
-    """Convert timedelta-like values (pandas/numpy/python) to float seconds."""
     if td is None:
-        return 0.0
+        raise ValueError("Missing timestamp")
     if hasattr(td, "total_seconds"):
         return float(td.total_seconds())
-    if hasattr(td, "item"):
-        return float(td.item()) / 1e9
+    if isinstance(td, np.timedelta64):
+        return float(td / np.timedelta64(1, "s"))
     return float(td)
 
 
-def ensure_time_seconds(df: pd.DataFrame, source_col: str = "Time") -> pd.DataFrame:
-    """Add a float 'TimeSeconds' column derived from a timedelta column, in place."""
-    if "TimeSeconds" in df.columns or source_col not in df.columns:
-        return df
-    df["TimeSeconds"] = df[source_col].apply(timedelta_to_seconds)
+def ensure_time_seconds(df, source_col="Time"):
+    if "TimeSeconds" not in df.columns and source_col in df.columns:
+        df["TimeSeconds"] = df[source_col].apply(timedelta_to_seconds)
     return df
 
 
-def find_overlap_region(
-    car_a_df: pd.DataFrame, car_b_df: pd.DataFrame, column: str = "DistanceOffset"
-) -> tuple[float, float] | None:
-    """Find the distance region where both cars have telemetry overlap."""
-    a_start, a_end = car_a_df[column].min(), car_a_df[column].max()
-    b_start, b_end = car_b_df[column].min(), car_b_df[column].max()
-
-    overlap_start = max(a_start, b_start)
-    overlap_end = min(a_end, b_end)
-
-    if overlap_start >= overlap_end:
+def find_overlap_region(a, b, column="DistanceOffset"):
+    if a.empty or b.empty or column not in a or column not in b:
         return None
-    return (overlap_start, overlap_end)
+    start, end = max(a[column].min(), b[column].min()), min(a[column].max(), b[column].max())
+    return (start, end) if start < end else None
 
 
-def compute_g_forces(
-    df: pd.DataFrame,
-    smoothing_window: int = 5,
-) -> pd.DataFrame:
-    """Compute lateral and longitudinal G-forces from telemetry.
+def compute_g_forces(df, smoothing_window=5):
+    """Causal trailing estimate; signed longitudinal G; unknown stays NaN.
 
-    Requires a 'Speed' column (km/h) plus either:
-    - 'X'/'Y' position columns (metres) and a time column -> full lateral +
-      longitudinal physics, or
-    - only a time column -> longitudinal only, lateral reported as unavailable.
-
-    Positions are smoothed with a centred rolling mean before numerical
-    differentiation; FastF1 position samples are low-rate (~4 Hz) and noisy.
+    Position direction is a public-feed estimate, not collision-grade geometry.
+    No interpolation over holes, duplicate times, or future samples.
     """
-    if df.empty or "Speed" not in df.columns:
-        df["lateral_g"] = 0.0
-        df["longitudinal_g"] = 0.0
-        df["lateral_g_available"] = False
-        return df
-
-    time_col = "TimeSeconds" if "TimeSeconds" in df.columns else "Time"
-    has_time = time_col in df.columns and len(df) > 1
-    has_position = {"X", "Y"}.issubset(df.columns) and has_time
-
-    if not has_time:
-        df["lateral_g"] = 0.0
-        df["longitudinal_g"] = 0.0
-        df["lateral_g_available"] = False
-        return df
-
-    ensure_time_seconds(df, "Time" if time_col == "Time" else "Time")
-    t = df["TimeSeconds"].to_numpy(dtype=float)
-
-    if has_position:
-        window = min(smoothing_window, max(1, len(df) // 4)) if len(df) >= 4 else 1
-        x = (
-            df["X"].interpolate(limit_direction="both")
-            .rolling(window, center=True, min_periods=1)
-            .mean()
-            .to_numpy(float)
-        )
-        y = (
-            df["Y"].interpolate(limit_direction="both")
-            .rolling(window, center=True, min_periods=1)
-            .mean()
-            .to_numpy(float)
-        )
-
-        # Hybrid method: speed magnitude comes from the (reliable) Speed
-        # channel; direction comes from the position track. Double-
-        # differentiating ~4 Hz positions directly amplifies quantization
-        # noise into 10x velocity errors, but the heading (direction) of the
-        # smoothed gradient is stable. Lateral accel = v * yaw_rate.
-        speed_ms = df["Speed"].to_numpy(dtype=float) / 3.6
-        heading = np.unwrap(
-            np.arctan2(np.gradient(y, t), np.gradient(x, t))
-        )
-        heading = (
-            pd.Series(heading)
-            .rolling(window, center=True, min_periods=1)
-            .mean()
-            .to_numpy(float)
-        )
-        yaw_rate = np.gradient(heading, t)
-
-        df["lateral_g"] = np.clip(np.abs(speed_ms * yaw_rate) / G_ACCELERATION, 0.0, 12.0)
-        df["longitudinal_g"] = np.clip(
-            np.abs(np.gradient(speed_ms, t)) / G_ACCELERATION, 0.0, 12.0
-        )
-        df["lateral_g_available"] = True
-        return df
-
-    speed_ms = df["Speed"].to_numpy(dtype=float) / 3.6
-    accel_longitudinal = np.gradient(speed_ms, t)
-    df["lateral_g"] = 0.0
-    df["longitudinal_g"] = np.clip(np.abs(accel_longitudinal) / G_ACCELERATION, 0.0, 12.0)
+    df = df.copy()
+    df["lateral_g"] = np.nan
+    df["longitudinal_g"] = np.nan
     df["lateral_g_available"] = False
+    source = "SessionTime" if "SessionTime" in df else "Time"
+    ensure_time_seconds(df, source)
+    if len(df) < 2 or "Speed" not in df or "TimeSeconds" not in df:
+        return df
+    t = df["TimeSeconds"].to_numpy(float)
+    if not np.isfinite(t).all() or (np.diff(t) <= 0).any():
+        raise ValueError("Telemetry timestamps must be finite and strictly increasing")
+    speed = df["Speed"].astype(float) / 3.6
+    dt = pd.Series(t, index=df.index).diff()
+    valid_dt = dt.where(dt <= 1.0)
+    longitudinal = speed.diff() / valid_dt / G_ACCELERATION
+    df["longitudinal_g"] = longitudinal.where(longitudinal.abs() <= 12)
+    if not {"X", "Y"}.issubset(df.columns):
+        return df
+    window = max(1, smoothing_window)
+    x = df["X"].rolling(window, min_periods=window).mean()
+    y = df["Y"].rolling(window, min_periods=window).mean()
+    dx, dy = x.diff(), y.diff()
+    heading = pd.Series(np.arctan2(dy, dx), index=df.index).where((dx.abs() + dy.abs()) > 0)
+    # Wrap the angular difference instead of unwrapping across missing segments.
+    delta = (heading.diff() + np.pi) % (2 * np.pi) - np.pi
+    lateral = (speed * delta / valid_dt / G_ACCELERATION).abs()
+    df["lateral_g"] = lateral.where(lateral <= 12)
+    df["lateral_g_available"] = df["lateral_g"].notna()
     return df
 
 
-def merge_position_channels(
-    df: pd.DataFrame, pos_df: pd.DataFrame, on: str = "SessionTime"
-) -> pd.DataFrame:
-    """Merge X/Y (and Position if present) channels from pos_data onto telemetry.
-
-    Both frames must share a time column; a nearest-time as-of merge is used
-    because car telemetry and position data sample at different rates.
-    """
-    if pos_df is None or pos_df.empty:
-        return df
-
-    if "X" not in pos_df.columns or "Y" not in pos_df.columns:
-        return df
-
-    left = df.copy().reset_index(drop=True)
-    if on not in left.columns or on not in pos_df.columns:
-        return left
-
-    left["_t"] = left[on].apply(timedelta_to_seconds)
-    channels = ["X", "Y"] + (["Position"] if "Position" in pos_df.columns else [])
-    right = pos_df[[on] + channels].copy()
-    right["_t"] = right[on].apply(timedelta_to_seconds)
-
-    left = pd.merge_asof(
+def merge_position_channels(df, pos_df, on="SessionTime", tolerance_s=0.3, position_units="decimetres"):
+    """Backward-only join of FastF1 position samples; normalize units once."""
+    if position_units not in {"decimetres", "metres"}:
+        raise ValueError("Explicit position units required")
+    if pos_df is None or pos_df.empty or not {on, "X", "Y"}.issubset(pos_df.columns) or on not in df:
+        return df.copy()
+    left = df.drop(columns=[c for c in ["X", "Y", "position_age_s"] if c in df]).copy()
+    left["_t"] = left[on].apply(timedelta_to_seconds).astype(float)
+    right = pos_df[[on, "X", "Y"]].copy()
+    right["_position_t"] = right[on].apply(timedelta_to_seconds).astype(float)
+    if position_units == "decimetres":
+        right[["X", "Y"]] = right[["X", "Y"]] / 10.0
+    merged = pd.merge_asof(
         left.sort_values("_t"),
-        right[["_t"] + channels].sort_values("_t"),
-        on="_t",
-        direction="nearest",
+        right[["_position_t", "X", "Y"]].sort_values("_position_t"),
+        left_on="_t",
+        right_on="_position_t",
+        direction="backward",
+        tolerance=float(tolerance_s),
     )
-    return left.drop(columns=["_t"]).sort_values(on)
+    merged["position_age_s"] = merged["_t"] - merged["_position_t"]
+    merged["position_units"] = "metres"
+    merged["position_source"] = "fastf1_normalized"
+    return merged.drop(columns=["_t", "_position_t"]).reset_index(drop=True)
