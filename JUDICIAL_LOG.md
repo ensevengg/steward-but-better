@@ -1,5 +1,9 @@
 # Judicial Log - Ingested FIA Rulebooks
 
+This is the legacy OCR inventory, not the active sanction policy. Runtime judging
+uses the explicitly reviewed, dated synopses in `src/brain/rulebook.py`. The older
+vector index remains available for research; its matches do not establish an offence.
+
 ## Sporting Regulations
 1. FIA 2025 Formula 1 Sporting Regulations - Issue 5 - 2025-04-30
 2. FIA 2024 Formula 1 Sporting Regulations - Issue 7 - 2024-07-31

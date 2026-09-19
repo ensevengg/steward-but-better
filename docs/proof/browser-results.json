@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "Real recorded telemetry + document reconstruction produce 10-second recommendation",
+    "Native samples, nine conditions, provenance, and source-linked rules visible",
+    "Close/reopen persists across browser refresh without changing judgment",
+    "Same incident with telemetry alone abstains, no invented sanction",
+    "No horizontal overflow at 320/390/768/1024/1440px; mobile tabs work",
+    "Polling preserves reader scroll position",
+    "Injected outage shows stale warning, retains last case, and recovers",
+    "No browser runtime errors"
+  ],
+  "passed": 8,
+  "errors": []
+}
