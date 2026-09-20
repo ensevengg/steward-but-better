@@ -10,6 +10,19 @@ export type Driver = {
   lap_number: number | null;
   delta_to_leader: number | null;
   status: string;
+  driver_number?: string | null;
+  team?: string | null;
+  team_color?: string | null;
+  throttle?: number | null;
+  brake_applied?: boolean | null;
+  gear?: number | null;
+  rpm?: number | null;
+  drs?: number | null;
+  lateral_g?: number | null;
+  longitudinal_g?: number | null;
+  sample_time_s?: number | null;
+  gap_text?: string | null;
+  timing_source?: string | null;
 };
 export type Observation = {
   id: string;
@@ -80,6 +93,15 @@ export type Dashboard = {
     session_time_s: number;
     received_at: string;
     all_drivers: Driver[];
+    native_samples_processed: number;
+    source: string;
+    track_status?: string | null;
+    race_control: {
+      id: string;
+      message: string;
+      time?: string;
+      category?: string;
+    }[];
   } | null;
   investigations: Case[];
   server_time: string;
