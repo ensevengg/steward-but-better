@@ -1,14 +1,14 @@
 {
   "checks": [
-    "Real recorded telemetry + document reconstruction produce 10-second recommendation",
-    "Native samples, nine conditions, provenance, and source-linked rules visible",
-    "Close/reopen persists across browser refresh without changing judgment",
-    "Same incident with telemetry alone abstains, no invented sanction",
-    "No horizontal overflow at 320/390/768/1024/1440px; mobile tabs work",
-    "Polling preserves reader scroll position",
-    "Injected outage shows stale warning, retains last case, and recovers",
+    "All 20 real driver cards visible without scrolling at desktop/laptop sizes; native counts advance",
+    "Reviewed 10-second test case opens only in sidebar; all-car telemetry continues advancing",
+    "Sidebar scroll exposes samples/rules without moving or hiding the field",
+    "Persistent close/reopen and telemetry-only abstention still work in report rail",
+    "Responsive field/report tabs work with no overflow at 320/390/768/1024/1440px",
+    "Injected outage labels stale data, keeps all 20 cards, and recovers",
     "No browser runtime errors"
   ],
-  "passed": 8,
-  "errors": []
+  "passed": 7,
+  "errors": [],
+  "scope": "Real 20-driver excerpt; two judging cases explicitly submitted as tests"
 }

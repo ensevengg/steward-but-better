@@ -5,6 +5,29 @@ reviewed facts, retaining exceptions and separating incident discovery from faul
 It does not establish a measured reduction in real-world false-positive rates.
 That needs a larger independently annotated evaluation set.
 
+## Full-field correction
+
+The primary screen now keeps all 20 driver cards visible at 1440×900 and
+1366×768, with independently scrolling reports on the right. Mobile has field
+and report tabs. Opening a case leaves native sample counts advancing.
+
+The default native replay covers the entire race and all entrants. A fresh
+São Paulo full-race processor run handled **421,220 native samples**, yielding
+**4,933 display packets** across **20 drivers**. It produced **zero candidates**;
+this demonstrates processing coverage, not successful incident detection.
+All 4,933 packets subsequently passed through the Next.js proxy and backend;
+SQLite retained sequence 4,932 / FINISHED with all 421,220 samples accounted for
+([result](proof/full-race.json)). This run exposed an invalid native gear value of
+17; invalid gear/RPM/DRS now stay unknown instead of rejecting the whole packet.
+The bundled demo is a separate 61-second excerpt with 91 display packets.
+
+The live bridge consumes a growing FastF1 recorder file, including compressed
+car/position messages and timing deltas. Tests cover partial writes, stale cars,
+missing/invalid channels, causal position matching, 24-driver processing and a
+late incident, plus continuous full-field ingestion while the judge is blocked.
+Real authenticated live-race connectivity remains unverified. Provider selection
+and remaining capacity work are detailed in [provider research](providers.md).
+
 ## Changes that matter for accuracy
 
 | Previous weakness | Implemented response | Remaining limit |
@@ -55,12 +78,12 @@ production UI build, headless Microsoft Edge driven by Playwright.
 | Check | Result |
 | --- | --- |
 | `uv sync --frozen --group dev` in repository `.venv` | Passed after Windows access was cleared |
-| Python regression suite | **95 passed** |
+| Python regression suite | **106 passed** |
 | Ruff over `src`, `tests`, `scripts` | Passed |
 | TypeScript, ESLint, Next.js production build | Passed |
 | Reconstruction and missing-evidence benchmark | **11/11 regression expectations passed**; not an accuracy score |
 | Fresh native telemetry through UI proxy/backend | 1,797 samples processed, 141 packets delivered, FINISHED persisted |
-| Production browser workflow | Eight checks, five viewport widths; [machine-readable results](proof/browser-results.json) |
+| Production browser workflow | Seven checks, five viewport widths; [machine-readable results](proof/browser-results.json) |
 | Actual provider calls through local OpenCode port 4096 | Requests reached server; provider-side access errors, no successful review claimed |
 
 Tests cover causal physics, missing channels, timestamp/unit validation,
@@ -74,9 +97,10 @@ Third-party pandas/NumPy and Starlette test-client deprecation warnings remain;
 they do not fail the tests.
 
 The [recorded browser proof](proof/steward-demo.webm) exercises the actual UI,
-proxy, backend worker, SQLite and assessor. It shows the reconstruction, native
-sample table, rules, close/reopen persistence, telemetry-only abstention and
-mobile layouts. Only the final outage segment injects an HTTP 503 to verify the
+proxy, backend worker, SQLite and assessor. It shows all 20 drivers, advancing telemetry during sidebar review, rules,
+close/reopen persistence, telemetry-only abstention and mobile layouts. The two
+judging cases are explicitly submitted test inputs, not automatically detected
+incidents. Only the final outage segment injects an HTTP 503 to verify the
 visible warning, retained case and recovery. It is not race footage or proof of
 video perception. The browser script is committed and CI records its own artifact.
 

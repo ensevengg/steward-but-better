@@ -1,0 +1,10 @@
+{
+  "event": "2025 Sao Paulo Grand Prix",
+  "scope": "Whole race through Next.js proxy, backend and SQLite",
+  "drivers": 20,
+  "native_samples": 421220,
+  "packets": 4933,
+  "persisted_status": "FINISHED",
+  "candidates": 0,
+  "independent_detection_claim": false
+}

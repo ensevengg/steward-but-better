@@ -1,11 +1,12 @@
 # Steward But Better
 
-An evidence-review prototype for racing incidents. It preserves real telemetry,
+A continuous full-field telemetry tracker with incident reports in a side panel.
+It preserves real telemetry,
 checks explicit rule conditions, and recommends a sanction only when the supplied
 reviewed evidence supports the implemented pattern. Missing facts remain unknown.
 The original submission remains on `OG/hackathon-v1`.
 
-**[Video proof](docs/proof/steward-demo.webm) · [Validation and findings](docs/validation.md)**
+**[Video proof](docs/proof/steward-demo.webm) · [Validation](docs/validation.md) · [Provider research](docs/providers.md)**
 
 ## What changed
 
@@ -42,10 +43,12 @@ npm run build
 npm start -- --hostname 127.0.0.1 --port 3000
 ```
 
-Open `http://127.0.0.1:3000` and choose **Load São Paulo 2025 study**. This replays a
-committed window of real FastF1 data and queues two distinct assessments. No model
-key or fresh telemetry download is needed. A lap in the session title describes
-the selected window; unavailable per-driver lap/rank/gap values remain unknown.
+Open `http://127.0.0.1:3000` and choose **Replay full field**. The bundled
+61-second São Paulo excerpt replays all 20 drivers at 2×, without a model key or
+fresh download. Desktop keeps the field visible beside independently scrolling
+reports; mobile separates field and reports into tabs. Reports do not interrupt
+telemetry. Historical positions are labelled as last completed lap timing; missing
+channels stay unknown. The demo does not inject incidents or claim live coverage.
 
 Environment names are in [.env.example](.env.example). Backend configuration can
 be loaded with uvicorn's `--env-file .env`; Next.js reads `src/ui/.env.local` or the
@@ -108,22 +111,41 @@ resolved before enabling model review for real decisions.
 
 ## Replay and API
 
-To download/replay a fresh native window (requires network):
+To replay the entire race and every entered driver (requires network/cache):
 
 ```sh
-uv run --frozen python -m src.telemetry.live_simulator --year 2025 --gp "Sao Paulo" --start-lap 6 --drivers PIA ANT LEC --export data/sao-paulo-native.json
+uv run --frozen python -m src.telemetry.live_simulator --year 2025 --gp "Sao Paulo" --speed 1
 ```
 
-Use `--no-send` for acquisition only and `--pace 0` for an unpaced replay. Fresh
+Use `--start-lap 6 --end-lap 6 --drivers PIA ANT LEC` only to narrow a test.
+Use `--no-send` for acquisition and native processing only and `--pace 0` for an unpaced replay. Fresh
 replays get unique session IDs. Ordered retries never report a failed delivery as
 accepted. The detector is a candidate heuristic, not a collision recognizer.
+
+For an actual live session, run FastF1's official authenticated recorder in one
+terminal, then follow its growing file in another. Supply the session's UTC clock
+origin and a new output filename. Follow FastF1's authentication requirements;
+this does not bypass upstream access. Start the follower after the file exists.
+
+```sh
+uv run --frozen python -m fastf1.livetiming save data/live-race.txt
+uv run --frozen python -m src.telemetry.live_bridge data/live-race.txt --follow --start-utc 2026-09-20T12:00:00Z --name "Live race"
+```
+
+The UTC value above is an example, not a published race schedule. The bridge
+incrementally handles driver, car, position, timing and race-control updates.
+The recorder remains separate from HTTP delivery. Reconnect/resume across process
+restarts is not implemented; use a new session ID after restart. An authenticated
+race connection has not been exercised here: compressed-message, partial-file,
+missing-channel and concurrent-judging behavior are covered by protocol tests.
 
 FastAPI's `/docs` describes the new strict contracts. `POST /telemetry` persists
 and queues atomically; `POST /cases` accepts a reviewed `CaseInput`; `GET /state`
 and `/cases/{id}` expose live state and detailed history. `PATCH /cases/{id}` needs
 `expected_version`. Evidence is immutable per case ID: corrections use a new ID.
 `POST /verdict` assesses a typed case synchronously without persisting it.
-`POST /studies/sao-paulo` launches the explicit historical study.
+`POST /replays/field` launches the all-driver excerpt.
+`POST /studies/sao-paulo` retains the explicit historical judging study.
 
 This is an API schema change from main: legacy flattened packets and free-text
 judging input are rejected. The UI is a proxy; the backend owns all durable state.
