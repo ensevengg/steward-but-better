@@ -77,12 +77,32 @@ class CaseInput(StrictModel):
 
 class DriverSnapshot(StrictModel):
     driver_code: str = Field(min_length=1, max_length=20)
+    driver_number: str | None = None
+    team: str | None = None
+    team_color: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{6}$")
     position_rank: int | None = Field(default=None, ge=1)
     lap_number: int | None = Field(default=None, ge=0)
     current_speed: FiniteFloat | None = Field(default=None, ge=0, le=450)
     delta_to_leader: FiniteFloat | None = Field(default=None, ge=0)
+    gap_text: str | None = None
     sector: str | None = None
-    status: Literal["ACTIVE", "OUT", "UNKNOWN"] = "UNKNOWN"
+    throttle: FiniteFloat | None = Field(default=None, ge=0, le=100)
+    brake_applied: StrictBool | None = None
+    gear: int | None = Field(default=None, ge=0, le=8)
+    rpm: FiniteFloat | None = Field(default=None, ge=0, le=25000)
+    drs: int | None = Field(default=None, ge=0, le=20)
+    lateral_g: FiniteFloat | None = Field(default=None, ge=0, le=12)
+    longitudinal_g: FiniteFloat | None = Field(default=None, ge=-12, le=12)
+    sample_time_s: FiniteFloat | None = Field(default=None, ge=0)
+    timing_source: str | None = None
+    status: Literal["ACTIVE", "PIT", "OUT", "UNKNOWN"] = "UNKNOWN"
+
+
+class RaceMessage(StrictModel):
+    id: str
+    message: str = Field(max_length=3000)
+    time: str | None = None
+    category: str | None = None
 
 
 class TelemetryPacket(StrictModel):
@@ -92,6 +112,10 @@ class TelemetryPacket(StrictModel):
     session_name: str = Field(min_length=1, max_length=200)
     session_time_s: FiniteFloat = Field(ge=0)
     status: Literal["REPLAY", "LIVE", "FINISHED"] = "REPLAY"
+    native_samples_processed: int = Field(default=0, ge=0)
+    source: str = "external"
+    race_control: list[RaceMessage] = Field(default_factory=list, max_length=100)
+    track_status: str | None = None
     all_drivers: list[DriverSnapshot] = Field(default_factory=list, max_length=40)
     cases: list[CaseInput] = Field(default_factory=list, max_length=40)
 

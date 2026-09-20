@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 import threading
-from .studies import sao_paulo_packets
+from .studies import sao_paulo_packets, field_packets
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from .contracts import CaseInput, TelemetryPacket, WorkflowUpdate
@@ -122,6 +122,26 @@ def create_app(db_path: str | Path | None = None, *, start_worker=True, judge=No
             app.state.replays.append(thread)
             thread.start()
         return {"session_id": session_id, "case_id": case_id}
+
+    @app.post("/replays/field", status_code=202)
+    def field_replay():
+        session_id, packets = field_packets()
+
+        def replay():
+            for previous, packet in zip(packets, packets[1:]):
+                if app.state.stop.wait((packet.session_time_s - previous.session_time_s) / 2):
+                    break
+                app.state.store.ingest(packet)
+
+        with app.state.replay_lock:
+            app.state.replays = [t for t in app.state.replays if t.is_alive()]
+            if len(app.state.replays) >= 3:
+                raise HTTPException(429, "Wait for an active replay to finish")
+            app.state.store.ingest(packets[0])
+            thread = threading.Thread(target=replay, daemon=True, name="field-replay")
+            app.state.replays.append(thread)
+            thread.start()
+        return {"session_id": session_id}
 
     return app
 

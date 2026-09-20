@@ -9,6 +9,25 @@ from .contracts import CaseInput, TelemetryPacket
 BENCHMARKS = Path(__file__).resolve().parents[2] / "benchmarks"
 
 
+def field_packets():
+    session_id = f"field-replay-{uuid.uuid4().hex[:12]}"
+    recording = json.loads((BENCHMARKS / "sao_paulo_2025_field.json").read_text(encoding="utf-8"))
+    packets = []
+    for i, row in enumerate(recording["packets"]):
+        packets.append(
+            TelemetryPacket.model_validate(
+                {
+                    **row,
+                    "session_id": session_id,
+                    "session_name": "São Paulo 2025 · full-field replay excerpt",
+                    "sequence": i,
+                    "status": "FINISHED" if i == len(recording["packets"]) - 1 else "REPLAY",
+                }
+            )
+        )
+    return session_id, packets
+
+
 def sao_paulo_packets():
     session_id = f"sao-paulo-study-{uuid.uuid4().hex[:12]}"
     reviewed = json.loads((BENCHMARKS / "sao_paulo_2025.json").read_text(encoding="utf-8"))
