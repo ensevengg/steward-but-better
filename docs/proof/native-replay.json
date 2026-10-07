@@ -1,0 +1,9 @@
+{
+  "native_samples": 1797,
+  "delivered_packets": 141,
+  "final_sequence": 140,
+  "status": "FINISHED",
+  "drivers": 3,
+  "automatic_candidates": 0,
+  "path": "FastF1 -> native detector -> Next.js proxy -> FastAPI -> SQLite"
+}

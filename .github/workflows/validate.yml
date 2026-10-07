@@ -1,0 +1,49 @@
+name: Validate evidence pipeline
+on:
+  pull_request:
+  push:
+    branches: [main, 'accuracy/**']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: src/ui/package-lock.json
+      - run: uv sync --frozen --group dev
+      - run: uv run --frozen ruff check src tests scripts
+      - run: uv run --frozen pytest -q
+      - run: uv run --frozen python -m scripts.benchmark
+      - run: npm ci
+        working-directory: src/ui
+      - run: npm run typecheck && npm run lint && npm run build
+        working-directory: src/ui
+      - run: uv run --frozen playwright install --with-deps chromium
+      - name: Run actual browser and backend workflow
+        shell: bash
+        run: |
+          uv run --frozen uvicorn src.brain.server:app --host 127.0.0.1 --port 8000 > /tmp/steward-backend.log 2>&1 &
+          backend_pid=$!
+          npm --prefix src/ui start -- --hostname 127.0.0.1 --port 3000 > /tmp/steward-ui.log 2>&1 &
+          ui_pid=$!
+          trap 'kill "$backend_pid" "$ui_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..30}; do
+            if curl -fsS http://127.0.0.1:8000/health && curl -fsS http://127.0.0.1:3000/api/telemetry > /dev/null; then break; fi
+            sleep 1
+          done
+          uv run --frozen python scripts/browser_check.py --channel ''
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-pipeline-proof
+          path: test-results/

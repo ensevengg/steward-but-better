@@ -51,8 +51,7 @@ def test_extract_article_isc_style():
 
 def test_extract_article_fia_section_heading():
     assert (
-        _extract_article("## 54) INCIDENTS DURING THE RACE\n54.1 If a driver is reported...")
-        == "Clause 54.1"
+        _extract_article("## 54) INCIDENTS DURING THE RACE\n54.1 If a driver is reported...") == "Clause 54.1"
     )
     assert _extract_article("## 9) SAFETY CAR\nSome prose.") == "Section 9"
 
@@ -71,7 +70,11 @@ def test_derive_category_detects_misfiled_technical_doc():
 
 
 def test_enrich_metadata_infers_year_from_source():
-    meta = {"Year": "unknown", "Document Category": "Unknown", "source": "rules/sporting_regulations/fia_2024_issue7.md"}
+    meta = {
+        "Year": "unknown",
+        "Document Category": "Unknown",
+        "source": "rules/sporting_regulations/fia_2024_issue7.md",
+    }
     enriched = _enrich_metadata(meta, "Any text")
     assert enriched["Year"] == "2024"
     assert enriched["Document Category"] == "Sporting Regulations"

@@ -1,124 +1,177 @@
-# STEWARD BUT BETTER
+# Steward But Better
 
-An AI race-steward prototype: it replays real F1 telemetry, detects potential
-incidents from physics, retrieves the applicable FIA rules with RAG, and shows
-verdicts with citations on a live dashboard.
+A continuous full-field telemetry tracker with incident reports in a side panel.
+It preserves real telemetry,
+checks explicit rule conditions, and recommends a sanction only when the supplied
+reviewed evidence supports the implemented pattern. Missing facts remain unknown.
+The original submission remains on `OG/hackathon-v1`.
 
-> **History:** this is the post-hackathon rebuild. The original hackathon
-> submission is preserved verbatim on the `OG/hackathon-v1` branch. The rebuild
-> replaced fabricated data paths (synthetic G-forces, a truncated vector index,
-> hard-coded confidence scores) with real, validated ones — see
-> *What is real* below.
+**[Video proof](docs/proof/steward-demo.webm) · [Validation](docs/validation.md) · [Provider research](docs/providers.md)**
 
----
+## What changed
 
-## How it works
+- Native FastF1 samples reach detection before display downsampling. Positions use
+  bounded backward joins and explicit units; estimated G cannot establish blame.
+- Reviewed, event-dated rule bundles retain exceptions. Unknown seasons and
+  unsupported responsibility patterns abstain instead of borrowing other rules.
+- Penalty recommendations require verified observations for each necessary
+  condition. Conflicts, external causes and shared contribution trigger review.
+- Optional OpenCode structured model review checks evidence and alternatives. It
+  can downgrade a recommendation, never invent evidence or increase a sanction.
+  Configured-provider errors require review; without configuration the deterministic
+  policy operates with model review visibly disabled.
+- SQLite transactions persist the packet, case queue and audit trail. Leases,
+  retries, idempotent IDs and version checks protect concurrent operations.
+- A restrained responsive workspace shows the timeline, evidence provenance,
+  rule conditions, source documents, uncertainty and durable case history.
 
-```
-FastF1 (real historical telemetry, cached)
-        │
-        ▼
-live_simulator.py            replays a lap at 1 packet/s, POSTs to the dashboard
-  ├─ telemetry_utils.py        real G-force physics (v·yaw-rate from X/Y track positions)
-  └─ driver_agnostic_detector  proximity / anomaly triggers, anonymized driver labels
-        │
-        ▼
-Next.js API  /api/telemetry   normalizes packets, owns dashboard state
-  ├─ brain service (FastAPI)  long-lived; loads the FAISS index once
-  │    └─ steward_agent.py    deterministic verdict + optional Mistral LLM wording
-  └─ data/*.json              locked, atomic state (NOT in public/)
-        │
-        ▼
-Dashboard                    driver grid, verdict cards with citations, inquiry log
-```
+## Run locally
 
-### The brain (RAG over the FIA rulebook)
+Use Python 3.11–3.13, Node 20.11+ and uv. From the repository root:
 
-- 3,725 chunks covering the 2021–2025 Sporting Regulations, 2025 Technical
-  Regulations, and the 2025 Driving Standards Guidelines (OCR'd from the FIA
-  PDFs via `src/ingestion/ocr_processor.py`).
-- Embedded locally with `sentence-transformers/all-MiniLM-L6-v2`; index,
-  metadata, and manifest are written as one **validated, atomic set**
-  (`vector count == chunk count`, checked on every load).
-- Retrieval filters by metadata (document category, year — current season
-  preferred) instead of string heuristics, and citations come from
-  article/section numbers extracted into chunk metadata.
-
-### The telemetry physics
-
-- Lateral G is computed from the car's actual trajectory: speed magnitude from
-  the Speed channel, yaw rate from smoothed X/Y positions
-  (`a_lat = v · ω`). Verified: ~5.20G measured vs 5.24G theoretical on a
-  synthetic 200 km/h, 60 m-radius circle; realistic 0.9–4.6G range on real
-  Yas Marina laps.
-- FastF1 position data samples at ~4 Hz, so G values are smoothed estimates,
-  not 250 Hz car telemetry.
-- Crash-class triggers require sustained ≥5G **plus** a ≥50 km/h speed drop
-  between packets — normal cornering (4–6G peaks) does not flag an incident.
-- When position channels are missing, lateral G is honestly reported as
-  unavailable rather than invented.
-
-## What is real vs. heuristic
-
-| Piece | Status |
-|---|---|
-| Telemetry source | Real (FastF1, official live-timing data, cached locally) |
-| G-forces | Real, computed from track positions (4 Hz, smoothed) |
-| Rule retrieval | Real FAISS RAG over the actual FIA rulebooks |
-| Verdict ruling | Deterministic evidence-scoring rules (see `_decide_verdict`) |
-| Verdict wording | Optional Mistral LLM (`MISTRAL_API_KEY`); system degrades gracefully without it |
-| Confidence score | Heuristic evidence-strength score — **not** a calibrated probability |
-| Incident detection thresholds | Hand-tuned (5G, 50 km/h drop, 30% proximity change) |
-| Simulator cadence | 1 packet/second replay of a historical lap |
-
-## Getting started
-
-```bash
-python -m pip install -r requirements.txt
-
-# 1. Brain service (loads the FAISS index once; port 8000)
-cd src/brain && python -m uvicorn server:app --port 8000
-
-# 2. Dashboard (port 3000)
-cd src/ui && npm install && npm run dev
-
-# 3. Telemetry replay (Abu Dhabi 2021, lap 58)
-cd src/telemetry && python live_simulator.py --year 2021 --gp "Abu Dhabi Grand Prix" --start-lap 58
+```sh
+uv sync --frozen --group dev
+uv run --frozen uvicorn src.brain.server:app --host 127.0.0.1 --port 8000
 ```
 
-Optional: set `MISTRAL_API_KEY` in `.env` for LLM-worded verdicts. The
-deterministic path needs no API keys.
+In another terminal:
 
-Useful brain utilities:
-
-```bash
-python src/brain/vector_index.py --validate          # check index/metadata consistency
-python src/brain/vector_index.py --search "leaving the track and gaining a lasting advantage"
-python src/brain/vector_index.py --rebuild-from-metadata src/brain/fia_rules_metadata.json
+```sh
+cd src/ui
+npm ci
+npm run build
+npm start -- --hostname 127.0.0.1 --port 3000
 ```
 
-## Tests
+Open `http://127.0.0.1:3000` and choose **Replay full field**. The bundled
+61-second São Paulo excerpt replays all 20 drivers at 2×, without a model key or
+fresh download. Desktop keeps the field visible beside independently scrolling
+reports; mobile separates field and reports into tabs. Reports do not interrupt
+telemetry. Historical positions are labelled as last completed lap timing; missing
+channels stay unknown. The demo does not inject incidents or claim live coverage.
 
-```bash
-python -m pytest tests/ -q
+Environment names are in [.env.example](.env.example). Backend configuration can
+be loaded with uvicorn's `--env-file .env`; Next.js reads `src/ui/.env.local` or the
+launch environment. State defaults to `data/steward.sqlite3`, outside Git. Run one
+backend process against persistent local storage. This is a local prototype;
+shared public deployment needs authentication and operational storage planning.
+
+## São Paulo result and its limits
+
+For Piastri/Antonelli, lap 6, turn 1 on 9 November 2025:
+
+| Input | Result |
+| --- | --- |
+| Reviewed reconstruction of FIA corrected document 68 | **10 seconds recommended**, matching the official time penalty |
+| Same retrospectively selected window, public telemetry only | **Insufficient evidence**, no sanction |
+| Native anomaly detector over the downloaded three-driver lap window | **0 candidates**; it missed this collision |
+
+The reconstruction includes explicit reviewer assumptions about absent mitigating
+or external factors. It tests rule application, **not independent historical
+prediction or video perception**. Expected outcomes live in a separate evaluator
+file and never enter the assessor or model payload. Two official penalty points
+are recorded for comparison, but this prototype does not recommend points.
+
+The reviewed runtime policy currently covers a narrow inside-overtake collision
+pattern and selected track-excursion exceptions for **2025 races from May 14 through
+December 31**. Other dates, sessions and responsibility patterns require review.
+This deliberate scope is smaller than the legacy OCR corpus; broad automated
+stewarding accuracy has not been established.
+
+## Optional model review through OpenCode
+
+Use a dedicated empty working directory for the OpenCode server, not this repo:
+
+```sh
+opencode serve --pure --hostname 127.0.0.1 --port 4096
 ```
 
-Covers the G-force physics (synthetic trajectories), article-aware chunking,
-metadata enrichment, verdict thresholds and payload shape, index-mismatch
-rejection, proximity-trigger semantics, and the evaluator's geometry and
-dive-bomb direction.
+Configure the backend's `STEWARD_OPENCODE_URL`, `STEWARD_MODEL_PROVIDER` and
+`STEWARD_MODEL_ID` explicitly. Authenticate the selected provider in OpenCode.
+If server authentication is enabled, pass `OPENCODE_SERVER_PASSWORD` to both
+processes. No provider credential belongs in this repository or the browser.
 
-## Known limitations
+The adapter uses `POST /session` and `POST /session/{id}/message`, JSON Schema
+output, denied execution permissions and disabled tools. Each review has its own
+session and is aborted/deleted afterward. The payload omits case identity,
+source URLs, expected penalties and historical titles; driver codes are replaced
+with neutral labels. Narrative evidence is still untrusted and may retain clues.
+It is validated against actual evidence IDs and the applicable rule bundle.
 
-- One lap at a time: the simulator replays a single lap per driver; gaps and
-  positions across laps are approximated with a fixed lap length.
-- Detection thresholds are hand-tuned against the 2021 Abu Dhabi sample, not
-  validated across races.
-- The steward agent's severity scoring is transparent but simplistic; a
-  production system would calibrate it against historical stewarding decisions.
-- The dashboard state store is a locked JSON file set — fine for a single
-  demo instance, not for multiple dashboard processes.
+```sh
+uv run --frozen python -m scripts.provider_smoke --provider YOUR_PROVIDER --model YOUR_MODEL
+```
 
-## License
+**Live validation limitation:** the installed OpenCode 1.18.31 server was reachable,
+but the tested free models returned a free-tier access error, including for a
+minimal connectivity prompt. The available OpenAI environment credential was also
+rejected. Successful live structured review is therefore not claimed. Mocked
+protocol tests and live failure handling are covered; provider access must be
+resolved before enabling model review for real decisions.
 
-MIT.
+## Replay and API
+
+To replay the entire race and every entered driver (requires network/cache):
+
+```sh
+uv run --frozen python -m src.telemetry.live_simulator --year 2025 --gp "Sao Paulo" --speed 1
+```
+
+Use `--start-lap 6 --end-lap 6 --drivers PIA ANT LEC` only to narrow a test.
+Use `--no-send` for acquisition and native processing only and `--pace 0` for an unpaced replay. Fresh
+replays get unique session IDs. Ordered retries never report a failed delivery as
+accepted. The detector is a candidate heuristic, not a collision recognizer.
+
+For an actual live session, run FastF1's official authenticated recorder in one
+terminal, then follow its growing file in another. Supply the session's UTC clock
+origin and a new output filename. Follow FastF1's authentication requirements;
+this does not bypass upstream access. Start the follower after the file exists.
+
+```sh
+uv run --frozen python -m fastf1.livetiming save data/live-race.txt
+uv run --frozen python -m src.telemetry.live_bridge data/live-race.txt --follow --start-utc 2026-09-20T12:00:00Z --name "Live race"
+```
+
+The UTC value above is an example, not a published race schedule. The bridge
+incrementally handles driver, car, position, timing and race-control updates.
+The recorder remains separate from HTTP delivery. Reconnect/resume across process
+restarts is not implemented; use a new session ID after restart. An authenticated
+race connection has not been exercised here: compressed-message, partial-file,
+missing-channel and concurrent-judging behavior are covered by protocol tests.
+
+FastAPI's `/docs` describes the new strict contracts. `POST /telemetry` persists
+and queues atomically; `POST /cases` accepts a reviewed `CaseInput`; `GET /state`
+and `/cases/{id}` expose live state and detailed history. `PATCH /cases/{id}` needs
+`expected_version`. Evidence is immutable per case ID: corrections use a new ID.
+`POST /verdict` assesses a typed case synchronously without persisting it.
+`POST /replays/field` launches the all-driver excerpt.
+`POST /studies/sao-paulo` retains the explicit historical judging study.
+
+This is an API schema change from main: legacy flattened packets and free-text
+judging input are rejected. The UI is a proxy; the backend owns all durable state.
+Old FAISS/OCR tools are research utilities, installable with `uv sync --group indexing`;
+they are not the runtime source of legal applicability or sanctions.
+
+## Validation
+
+```sh
+uv run --frozen ruff check src tests scripts
+uv run --frozen pytest -q
+uv run --frozen python -m scripts.benchmark
+cd src/ui
+npm run typecheck
+npm run lint
+npm run build
+```
+
+With both production services running, from the repository root:
+
+```sh
+uv run --frozen playwright install ffmpeg
+uv run --frozen python scripts/browser_check.py --channel msedge
+```
+
+On Linux/CI install Chromium with `playwright install --with-deps chromium` and
+pass `--channel ""`. The script records the real workflow and a separately labelled
+injected-outage check. Automated CI repeats Python, UI and browser checks; external
+model access is an explicit opt-in smoke test, not a silently mocked CI success.
